@@ -42,6 +42,18 @@ public class ConversionFactorDAO {
                 }
             }
         }
+        // Fallback: use the first available conversion factor for this food
+        String fallbackSql = "SELECT conversionfactorvalue FROM conversion_factor WHERE foodid = ? LIMIT 1";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(fallbackSql)) {
+            ps.setInt(1, foodId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    System.err.println("[WARN] Fallback: using first available conversion factor for foodId=" + foodId + ", measureId=" + measureId);
+                    return rs.getDouble("conversionfactorvalue");
+                }
+            }
+        }
         throw new SQLException("Conversion factor not found for foodId = " + foodId + ", measureId = " + measureId);
     }
 }

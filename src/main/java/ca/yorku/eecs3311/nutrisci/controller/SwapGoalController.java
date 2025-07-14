@@ -57,7 +57,7 @@ public class SwapGoalController {
         goalDAO.deleteById(goal.getId());
     }
 
-    public List<SwapRecommender.SwapSuggestion> generateSuggestions(List<SwapGoal> goals) {
-        return recommender.suggestSwaps(goals);
+    public List<SwapRecommender.SwapSuggestion> generateSuggestions(List<SwapGoal> goals, List<ca.yorku.eecs3311.nutrisci.model.MealItem> mealItems) {
+        return recommender.suggestSwaps(goals, mealItems);
     }
 }

@@ -214,35 +214,54 @@ public class SwapPanel extends JPanel {
     }
 
     private void onSuggest() {
+        System.out.println("DEBUG: onSuggest called");
         resultTableModel.setRowCount(0);
         List<SwapGoal> goals = new ArrayList<>();
         for (int i = 0; i < goalListModel.size(); i++) {
             goals.add(goalListModel.get(i));
         }
+        System.out.println("DEBUG: goals.size=" + goals.size());
+
+        // If no goals, add a default goal for testing
+        if (goals.isEmpty()) {
+            String nut = (String) nutrientCombo.getSelectedItem();
+            String dir = (String) directionCombo.getSelectedItem();
+            String unit = (String) unitCombo.getSelectedItem();
+            double amt = 10.0;
+            try {
+                amt = Double.parseDouble(amountField.getText().trim());
+            } catch (Exception ignored) {}
+            SwapGoal defaultGoal = new SwapGoal(userId, nut, dir, amt, "", unit);
+            goals.add(defaultGoal);
+            System.out.println("DEBUG: Added default goal: " + nut + ", " + dir + ", " + amt + unit);
+        }
 
         String selected = (String) mealSelector.getSelectedItem();
         if (selected == null || !mealKeyToId.containsKey(selected)) {
+            System.out.println("DEBUG: No meal selected");
             JOptionPane.showMessageDialog(this, "Please select a meal.");
             return;
         }
 
         int mealId = mealKeyToId.get(selected);
+        System.out.println("DEBUG: mealId=" + mealId);
         MealController mealCtl = new MealController();
-        List<MealItem> items;
+        List<ca.yorku.eecs3311.nutrisci.model.MealItem> items;
         try {
             items = mealCtl.getMealItems(mealId);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Failed to load meal items: " + e.getMessage());
             return;
         }
+        System.out.println("DEBUG: items.size=" + items.size());
 
-//        List<SwapRecommender.SwapSuggestion> suggestions = goalCtl.generateSuggestions(goals, items);
-//        for (SwapRecommender.SwapSuggestion s : suggestions) {
-//            resultTableModel.addRow(new Object[]{
-//                    s.getOriginalFoodName(),
-//                    s.getSuggestedFoodName(),
-//                    s.getExpectedChange()
-//            });
-//        }
+        List<ca.yorku.eecs3311.nutrisci.recommendation.SwapRecommender.SwapSuggestion> suggestions = goalCtl.generateSuggestions(goals, items);
+        for (ca.yorku.eecs3311.nutrisci.recommendation.SwapRecommender.SwapSuggestion s : suggestions) {
+            resultTableModel.addRow(new Object[]{
+                    s.getOriginalFoodName(),
+                    s.getSuggestedFoodName(),
+                    s.getExpectedChange()
+            });
+        }
     }
 }

@@ -20,10 +20,14 @@ public class MealNutritionController {
             double weight = mi.getQuantity() * factorDAO.getFactor(mi.getFoodId(), mi.getMeasureId());
             Map<Integer, Double> nutrients = nutrientDAO.getNutrientMapByFoodId(mi.getFoodId());
             Double kcal = nutrients.get(208); // Energy (kcal)
+            System.out.println("DEBUG: foodId=" + mi.getFoodId() + ", measureId=" + mi.getMeasureId() + ", quantity=" + mi.getQuantity() + ", factor=" + weight + ", kcal=" + kcal);
             if (kcal != null) {
-                total += kcal * weight / 100.0;
+                double itemKcal = kcal * weight / 100.0;
+                System.out.println("DEBUG: Calculated item kcal = " + itemKcal);
+                total += itemKcal;
             }
         }
+        System.out.println("DEBUG: Total calculated calories = " + total);
         return total;
     }
 

@@ -64,9 +64,14 @@ public class NutrientAmountDAO {
             ps.setInt(1, foodId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    int id = rs.getInt("nutrientid");
-                    double value = rs.getDouble("nutrientvalue");
-                    map.put(id, value);
+                    try {
+                        int id = Integer.parseInt(rs.getString("nutrientid"));
+                        double value = Double.parseDouble(rs.getString("nutrientvalue"));
+                        map.put(id, value);
+                    } catch (NumberFormatException e) {
+                        // Skip invalid nutrient data
+                        System.err.println("Invalid nutrient data for food " + foodId + ": " + e.getMessage());
+                    }
                 }
             }
         }

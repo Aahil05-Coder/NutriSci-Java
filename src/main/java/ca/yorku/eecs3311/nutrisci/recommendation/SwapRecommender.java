@@ -15,9 +15,18 @@ public class SwapRecommender {
     private static final Map<String, Integer> NUTRIENT_MAP = new HashMap<>();
     static {
         NUTRIENT_MAP.put("Fiber", 291);
+        NUTRIENT_MAP.put("FIBER", 291);
         NUTRIENT_MAP.put("Calories", 208);
+        NUTRIENT_MAP.put("CALORIES", 208);
         NUTRIENT_MAP.put("Protein", 203);
+        NUTRIENT_MAP.put("PROTEIN", 203);
         NUTRIENT_MAP.put("Carbohydrate", 205);
+        NUTRIENT_MAP.put("CARBOHYDRATE", 205);
+        NUTRIENT_MAP.put("Sugars, total", 269);
+        NUTRIENT_MAP.put("SUGARS, TOTAL", 269);
+        NUTRIENT_MAP.put("Fat", 204);
+        NUTRIENT_MAP.put("FAT", 204);
+        // Add more as needed, matching the dropdown exactly
     }
 
     public static class SwapSuggestion {
@@ -36,45 +45,54 @@ public class SwapRecommender {
         public double getExpectedChange() { return expectedChange; }
     }
 
-    public List<SwapSuggestion> suggestSwaps(List<SwapGoal> goals) {
+    public List<SwapSuggestion> suggestSwaps(List<SwapGoal> goals, List<ca.yorku.eecs3311.nutrisci.model.MealItem> mealItems) {
         List<SwapSuggestion> result = new ArrayList<>();
         try (Connection conn = getConnection()) {
             for (SwapGoal goal : goals) {
                 Integer nutrNo = NUTRIENT_MAP.get(goal.getNutrient());
+                System.out.println("DEBUG: Goal nutrient=" + goal.getNutrient() + ", mapped nutrNo=" + nutrNo);
                 if (nutrNo == null) continue;
-                String lowSql = "SELECT food_no, nutrval FROM nutrient_amount " +
-                                "WHERE nutrient_no = ? ORDER BY nutrval ASC LIMIT 1";
-                String highSql = "SELECT food_no, nutrval FROM nutrient_amount " +
-                                 "WHERE nutrient_no = ? ORDER BY nutrval DESC LIMIT 1";
-                int lowFood = 0, highFood = 0;
-                double lowVal = 0, highVal = 0;
-                try (PreparedStatement ps = conn.prepareStatement(lowSql)) {
-                    ps.setInt(1, nutrNo);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            lowFood = rs.getInt("food_no");
-                            lowVal = rs.getDouble("nutrval");
+                for (ca.yorku.eecs3311.nutrisci.model.MealItem item : mealItems) {
+                    // Get current value for this food
+                    double currentVal = 0;
+                    String getValSql = "SELECT nutrientvalue FROM nutrient_amount WHERE foodid = ? AND nutrientid = ?";
+                    try (PreparedStatement ps = conn.prepareStatement(getValSql)) {
+                        ps.setInt(1, item.getFoodId());
+                        ps.setInt(2, nutrNo);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (rs.next()) {
+                                currentVal = rs.getDouble("nutrientvalue");
+                            }
                         }
                     }
-                }
-
-                try (PreparedStatement ps = conn.prepareStatement(highSql)) {
-                    ps.setInt(1, nutrNo);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            highFood = rs.getInt("food_no");
-                            highVal = rs.getDouble("nutrval");
+                    System.out.println("DEBUG: MealItem foodId=" + item.getFoodId() + ", currentVal=" + currentVal);
+                    // Find a better food for this nutrient
+                    String betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? ORDER BY nutrientvalue DESC LIMIT 1";
+                    if ("DECREASE".equals(goal.getDirection())) {
+                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? ORDER BY nutrientvalue ASC LIMIT 1";
+                    }
+                    int betterFoodId = item.getFoodId();
+                    double betterVal = currentVal;
+                    try (PreparedStatement ps = conn.prepareStatement(betterSql)) {
+                        ps.setInt(1, nutrNo);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (rs.next()) {
+                                betterFoodId = rs.getInt("foodid");
+                                betterVal = rs.getDouble("nutrientvalue");
+                            }
                         }
                     }
-                }
-
-                String lowName = fetchFoodName(conn, lowFood);
-                String highName = fetchFoodName(conn, highFood);
-                double change = highVal - lowVal;
-                if ("INCREASE".equals(goal.getDirection())) {
-                    result.add(new SwapSuggestion(lowName, highName, change));
-                } else {
-                    result.add(new SwapSuggestion(highName, lowName, -change));
+                    System.out.println("DEBUG: Best swap foodId=" + betterFoodId + ", betterVal=" + betterVal);
+                    if (betterFoodId != item.getFoodId()) {
+                        String origName = fetchFoodName(conn, item.getFoodId());
+                        String suggName = fetchFoodName(conn, betterFoodId);
+                        double change = betterVal - currentVal;
+                        if ("DECREASE".equals(goal.getDirection())) change = currentVal - betterVal;
+                        System.out.println("DEBUG: Suggest swap " + origName + " -> " + suggName + ", change=" + change);
+                        result.add(new SwapSuggestion(origName, suggName, change));
+                    } else {
+                        System.out.println("DEBUG: No better swap found for foodId=" + item.getFoodId());
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -83,12 +101,12 @@ public class SwapRecommender {
         return result;
     }
 
-    private String fetchFoodName(Connection conn, int foodNo) throws SQLException {
-        String sql = "SELECT food_name_eng FROM food_name WHERE food_no = ?";
+    private String fetchFoodName(Connection conn, int foodId) throws SQLException {
+        String sql = "SELECT fooddescription FROM food_name WHERE foodid = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, foodNo);
+            ps.setInt(1, foodId);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getString("food_name_eng");
+                if (rs.next()) return rs.getString("fooddescription");
             }
         }
         return "Unknown";

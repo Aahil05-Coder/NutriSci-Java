@@ -13,11 +13,11 @@ public class DBUtil {
 
     private static final String DB_URL =
         "jdbc:mysql://localhost:3306/nutrisci_db?useSSL=false&serverTimezone=UTC"
-      + "&allowLoadLocalInfile=true&rewriteBatchedStatements=true";
+      + "&allowLoadLocalInfile=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true";
 
     private static final String DB_NAME  = "nutrisci_db";
     private static final String USER     = "root";
-    private static final String PASSWORD = "1234";
+    private static final String PASSWORD = "";
 
     private static Connection conn = null;
 

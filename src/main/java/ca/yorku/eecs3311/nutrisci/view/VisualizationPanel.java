@@ -54,7 +54,22 @@ public class VisualizationPanel extends JPanel {
     }
 
     private int selectRecommendation() {
-        String input = JOptionPane.showInputDialog(this, "Enter the recommendationId you want to compare:");
+        // Fetch available recommendation IDs and nutrients
+        StringBuilder recList = new StringBuilder();
+        try {
+            java.sql.Connection conn = ca.yorku.eecs3311.nutrisci.util.DBUtil.getConnection();
+            java.sql.Statement stmt = conn.createStatement();
+            java.sql.ResultSet rs = stmt.executeQuery("SELECT r.id, n.nutrientname FROM recommendations r JOIN nutrient_name n ON r.nutrient_id = n.nutrientid ORDER BY r.id DESC LIMIT 10");
+            recList.append("Available Recommendation IDs:\n");
+            while (rs.next()) {
+                recList.append("ID: ").append(rs.getInt(1)).append(" (Nutrient: ").append(rs.getString(2)).append(")\n");
+            }
+            rs.close();
+            stmt.close();
+        } catch (Exception e) {
+            recList.append("(Could not fetch recommendations)");
+        }
+        String input = JOptionPane.showInputDialog(this, recList.toString() + "\nEnter the recommendationId you want to compare:");
         try {
             return Integer.parseInt(input.trim());
         } catch (Exception ex) {
