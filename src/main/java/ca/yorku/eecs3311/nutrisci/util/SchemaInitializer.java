@@ -84,6 +84,7 @@ public class SchemaInitializer {
              "proteins_pct DOUBLE, " +
              "fats_pct DOUBLE, " +
              "others_pct DOUBLE, " +
+             "UNIQUE KEY unique_user_date (user_id, summary_date), " +
              "FOREIGN KEY (user_id) REFERENCES users(id))"
          );
          stmt.executeUpdate(

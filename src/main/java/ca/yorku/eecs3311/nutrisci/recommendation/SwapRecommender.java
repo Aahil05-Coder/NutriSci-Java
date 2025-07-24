@@ -1,5 +1,6 @@
 package ca.yorku.eecs3311.nutrisci.recommendation;
 
+import ca.yorku.eecs3311.nutrisci.dao.NutrientNameDAO;
 import ca.yorku.eecs3311.nutrisci.model.SwapGoal;
 import static ca.yorku.eecs3311.nutrisci.util.DBUtil.getConnection;
 import java.sql.Connection;
@@ -12,22 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 public class SwapRecommender {
-    private static final Map<String, Integer> NUTRIENT_MAP = new HashMap<>();
-    static {
-        NUTRIENT_MAP.put("Fiber", 291);
-        NUTRIENT_MAP.put("FIBER", 291);
-        NUTRIENT_MAP.put("Calories", 208);
-        NUTRIENT_MAP.put("CALORIES", 208);
-        NUTRIENT_MAP.put("Protein", 203);
-        NUTRIENT_MAP.put("PROTEIN", 203);
-        NUTRIENT_MAP.put("Carbohydrate", 205);
-        NUTRIENT_MAP.put("CARBOHYDRATE", 205);
-        NUTRIENT_MAP.put("Sugars, total", 269);
-        NUTRIENT_MAP.put("SUGARS, TOTAL", 269);
-        NUTRIENT_MAP.put("Fat", 204);
-        NUTRIENT_MAP.put("FAT", 204);
-        // Add more as needed, matching the dropdown exactly
-    }
+    private final NutrientNameDAO nutrientNameDAO = new NutrientNameDAO();
+    
+    // Cache for nutrient mappings to avoid repeated database queries
+    private Map<String, Integer> nutrientMap = null;
 
     public static class SwapSuggestion {
         private final String originalFoodName;
@@ -44,14 +33,32 @@ public class SwapRecommender {
         public String getSuggestedFoodName() { return suggestedFoodName; }
         public double getExpectedChange() { return expectedChange; }
     }
+    
+    private Map<String, Integer> getNutrientMap() throws SQLException {
+        if (nutrientMap == null) {
+            nutrientMap = nutrientNameDAO.getAllNutrientNames();
+        }
+        return nutrientMap;
+    }
 
     public List<SwapSuggestion> suggestSwaps(List<SwapGoal> goals, List<ca.yorku.eecs3311.nutrisci.model.MealItem> mealItems) {
         List<SwapSuggestion> result = new ArrayList<>();
-        try (Connection conn = getConnection()) {
+        Connection conn = null;
+        try {
+            // Get nutrient mapping BEFORE opening the main connection
+            Map<String, Integer> nutrientMapping = getNutrientMap();
+            
+            conn = getConnection();
+            conn.setAutoCommit(true); // Ensure auto-commit is enabled
+            
             for (SwapGoal goal : goals) {
-                Integer nutrNo = NUTRIENT_MAP.get(goal.getNutrient());
+                Integer nutrNo = nutrientMapping.get(goal.getNutrient());
                 System.out.println("DEBUG: Goal nutrient=" + goal.getNutrient() + ", mapped nutrNo=" + nutrNo);
-                if (nutrNo == null) continue;
+                if (nutrNo == null) {
+                    System.out.println("DEBUG: Nutrient not found in database: " + goal.getNutrient());
+                    continue;
+                }
+                
                 for (ca.yorku.eecs3311.nutrisci.model.MealItem item : mealItems) {
                     // Get current value for this food
                     double currentVal = 0;
@@ -66,15 +73,22 @@ public class SwapRecommender {
                         }
                     }
                     System.out.println("DEBUG: MealItem foodId=" + item.getFoodId() + ", currentVal=" + currentVal);
+                    
                     // Find a better food for this nutrient
-                    String betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? ORDER BY nutrientvalue DESC LIMIT 1";
-                    if ("DECREASE".equals(goal.getDirection())) {
-                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? ORDER BY nutrientvalue ASC LIMIT 1";
+                    String betterSql;
+                    if ("INCREASE".equals(goal.getDirection())) {
+                        // For INCREASE, find foods with MORE of the nutrient
+                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? AND nutrientvalue > ? ORDER BY nutrientvalue DESC LIMIT 1";
+                    } else {
+                        // For DECREASE, find foods with LESS of the nutrient
+                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? AND nutrientvalue < ? ORDER BY nutrientvalue ASC LIMIT 1";
                     }
+                    
                     int betterFoodId = item.getFoodId();
                     double betterVal = currentVal;
                     try (PreparedStatement ps = conn.prepareStatement(betterSql)) {
                         ps.setInt(1, nutrNo);
+                        ps.setDouble(2, currentVal);
                         try (ResultSet rs = ps.executeQuery()) {
                             if (rs.next()) {
                                 betterFoodId = rs.getInt("foodid");
@@ -83,11 +97,11 @@ public class SwapRecommender {
                         }
                     }
                     System.out.println("DEBUG: Best swap foodId=" + betterFoodId + ", betterVal=" + betterVal);
+                    
                     if (betterFoodId != item.getFoodId()) {
                         String origName = fetchFoodName(conn, item.getFoodId());
                         String suggName = fetchFoodName(conn, betterFoodId);
                         double change = betterVal - currentVal;
-                        if ("DECREASE".equals(goal.getDirection())) change = currentVal - betterVal;
                         System.out.println("DEBUG: Suggest swap " + origName + " -> " + suggName + ", change=" + change);
                         result.add(new SwapSuggestion(origName, suggName, change));
                     } else {
@@ -96,7 +110,16 @@ public class SwapRecommender {
                 }
             }
         } catch (SQLException e) {
+            System.err.println("ERROR in suggestSwaps: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException closeEx) {
+                    System.err.println("ERROR closing connection: " + closeEx.getMessage());
+                }
+            }
         }
         return result;
     }

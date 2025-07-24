@@ -30,6 +30,16 @@ public class MainFrame extends JFrame {
         tabs.addTab("Swap", new SwapPanel(user.getId()));
         tabs.addTab("Visualization", new VisualizationPanel(user.getId()));
 
+        // Add tab change listener to refresh data when switching tabs
+        tabs.addChangeListener(e -> {
+            int selectedIndex = tabs.getSelectedIndex();
+            if (selectedIndex == 2) { // Swap tab
+                // Refresh the swap panel when it becomes visible
+                SwapPanel swapPanel = (SwapPanel) tabs.getComponentAt(2);
+                swapPanel.refreshMeals();
+            }
+        });
+
         getContentPane().add(tabs, BorderLayout.CENTER);
     }
 }

@@ -49,6 +49,14 @@ public class MeasureComboBoxCellEditor extends AbstractCellEditor implements Tab
 
     @Override
     public Object getCellEditorValue() {
-        return combo.getSelectedItem();
+        Object selected = combo.getSelectedItem();
+        if (selected instanceof Measure) {
+            return selected;
+        }
+        // If no valid selection, return the first available measure
+        if (model.getSize() > 0) {
+            return model.getElementAt(0);
+        }
+        return null;
     }
 }

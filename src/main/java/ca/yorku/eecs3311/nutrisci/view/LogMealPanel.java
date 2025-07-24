@@ -23,6 +23,7 @@ package ca.yorku.eecs3311.nutrisci.view;
     import java.util.List;
     import java.util.ArrayList;
     import java.util.Map;
+    import java.sql.SQLException;
 
     public class LogMealPanel extends JPanel {
 
@@ -48,7 +49,32 @@ package ca.yorku.eecs3311.nutrisci.view;
             dateField = new JTextField(LocalDate.now().toString(), 10);
             top.add(dateField);
             top.add(new JLabel("Meal Type:"));
-            mealTypeCombo = new JComboBox<>(new String[]{"BREAKFAST", "LUNCH", "DINNER", "SNACK"});
+            
+            // Load meal types from database if available, otherwise use defaults
+            String[] mealTypes = {"BREAKFAST", "LUNCH", "DINNER", "SNACK"};
+            try {
+                // Try to get meal types from database if there's a meal_type table
+                java.sql.Connection conn = ca.yorku.eecs3311.nutrisci.util.DBUtil.getConnection();
+                java.sql.Statement stmt = conn.createStatement();
+                java.sql.ResultSet rs = stmt.executeQuery("SHOW TABLES LIKE 'meal_type'");
+                if (rs.next()) {
+                    // If meal_type table exists, fetch from it
+                    rs = stmt.executeQuery("SELECT DISTINCT meal_type FROM meals ORDER BY meal_type");
+                    java.util.List<String> dbMealTypes = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        dbMealTypes.add(rs.getString("meal_type"));
+                    }
+                    if (!dbMealTypes.isEmpty()) {
+                        mealTypes = dbMealTypes.toArray(new String[0]);
+                    }
+                    rs.close();
+                }
+                stmt.close();
+            } catch (Exception e) {
+                System.out.println("DEBUG: Using default meal types: " + e.getMessage());
+            }
+            
+            mealTypeCombo = new JComboBox<>(mealTypes);
             top.add(mealTypeCombo);
             entryTable.setRowHeight(28); 
             entryTable.getColumnModel().getColumn(0).setCellEditor(new FoodComboBoxCellEditor());
@@ -86,7 +112,12 @@ package ca.yorku.eecs3311.nutrisci.view;
             recordPanel.add(new JScrollPane(recordTable), BorderLayout.CENTER);
             JButton delMeal = new JButton("Delete Meal");
             delMeal.addActionListener(e -> deleteSelectedMeal());
+            
+            JButton recalcBtn = new JButton("Recalculate Daily Summary");
+            recalcBtn.addActionListener(e -> recalculateDailySummary());
+            
             JPanel recSouth = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            recSouth.add(recalcBtn);
             recSouth.add(delMeal);
             recordPanel.add(recSouth, BorderLayout.SOUTH);
 
@@ -112,18 +143,69 @@ package ca.yorku.eecs3311.nutrisci.view;
 
         private void saveMeal() {
             try {
-                if (entryTable.isEditing()) entryTable.getCellEditor().stopCellEditing();
+                // Force stop any active cell editing
+                if (entryTable.isEditing()) {
+                    entryTable.getCellEditor().stopCellEditing();
+                }
+                
                 LocalDate d = LocalDate.parse(dateField.getText().trim());
                 String mealType = (String) mealTypeCombo.getSelectedItem();
                 List<MealItem> items = entryModel.toMealItems();
+                
+                // Validate that all items have proper food and measure selections
+                for (int i = 0; i < items.size(); i++) {
+                    MealItem item = items.get(i);
+                    if (item.getFoodId() <= 0 || item.getMeasureId() <= 0) {
+                        JOptionPane.showMessageDialog(this, 
+                            "Please ensure all ingredients have valid food and unit selections in row " + (i + 1));
+                        return;
+                    }
+                }
+                
                 if (items.isEmpty()) {
                     JOptionPane.showMessageDialog(this, "Please enter at least one valid record.");
                     return;
                 }
-                mealCtl.saveMeal(uid, d, mealType, items);
-                JOptionPane.showMessageDialog(this, "Saved successfully.");
-                entryModel.reset();
-                refreshMeals();
+                
+                try {
+                    mealCtl.saveMeal(uid, d, mealType, items);
+                    
+                    // Calculate and store daily summary for visualization
+                    try {
+                        nutritionCtl.calculateAndStoreDailySummary(uid, d);
+                    } catch (Exception ex) {
+                        System.err.println("Failed to calculate daily summary: " + ex.getMessage());
+                    }
+                    
+                    JOptionPane.showMessageDialog(this, "Saved successfully.");
+                    entryModel.reset();
+                    refreshMeals();
+                } catch (SQLException ex) {
+                    if (ex.getMessage().contains("already logged")) {
+                        // Handle duplicate meal error
+                        int choice = JOptionPane.showConfirmDialog(this,
+                            "You have already logged a " + mealType + " meal on " + d + ".\n" +
+                            "Would you like to:\n" +
+                            "1. Change the meal type to SNACK\n" +
+                            "2. Change the date\n" +
+                            "3. Cancel",
+                            "Duplicate Meal",
+                            JOptionPane.YES_NO_CANCEL_OPTION);
+                        
+                        if (choice == JOptionPane.YES_OPTION) {
+                            // Change to SNACK
+                            mealTypeCombo.setSelectedItem("SNACK");
+                            JOptionPane.showMessageDialog(this, "Meal type changed to SNACK. Please try saving again.");
+                        } else if (choice == JOptionPane.NO_OPTION) {
+                            // Change date to tomorrow
+                            dateField.setText(d.plusDays(1).toString());
+                            JOptionPane.showMessageDialog(this, "Date changed to tomorrow. Please try saving again.");
+                        }
+                        // If CANCEL, do nothing
+                    } else {
+                        throw ex; // Re-throw other SQL exceptions
+                    }
+                }
             } catch (DateTimeParseException ex) {
                 JOptionPane.showMessageDialog(this, "Invalid date format (YYYY-MM-DD).");
             } catch (Exception ex) {
@@ -156,6 +238,16 @@ package ca.yorku.eecs3311.nutrisci.view;
                 refreshMeals();
             } catch (Exception ex) {
                 ex.printStackTrace();
+            }
+        }
+        
+        private void recalculateDailySummary() {
+            try {
+                nutritionCtl.recalculateAllDailySummaries(uid);
+                JOptionPane.showMessageDialog(this, "Daily summaries recalculated successfully!");
+            } catch (SQLException e) {
+                JOptionPane.showMessageDialog(this, "Failed to recalculate daily summaries: " + e.getMessage());
+                e.printStackTrace();
             }
         }
 

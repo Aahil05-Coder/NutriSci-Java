@@ -86,7 +86,18 @@ public class FoodComboBoxCellEditor extends AbstractCellEditor implements TableC
     }
 
     public Object getCellEditorValue() {
-        Object v = combo.getEditor().getItem();
-        return (v instanceof Food) ? v : null;
+        Object v = combo.getSelectedItem();
+        if (v instanceof Food) {
+            return v;
+        }
+        // If the editor text is not a Food object, try to find it in the model
+        String text = combo.getEditor().getItem().toString();
+        for (int i = 0; i < model.getSize(); i++) {
+            Food food = model.getElementAt(i);
+            if (food.getDescription().equals(text)) {
+                return food;
+            }
+        }
+        return null;
     }
 }
