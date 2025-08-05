@@ -113,12 +113,16 @@ package ca.yorku.eecs3311.nutrisci.view;
             JButton delMeal = new JButton("Delete Meal");
             delMeal.addActionListener(e -> deleteSelectedMeal());
             
+            JButton deleteAllMeals = new JButton("Delete All Meals");
+            deleteAllMeals.addActionListener(e -> deleteAllMeals());
+            
             JButton recalcBtn = new JButton("Recalculate Daily Summary");
             recalcBtn.addActionListener(e -> recalculateDailySummary());
             
             JPanel recSouth = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             recSouth.add(recalcBtn);
             recSouth.add(delMeal);
+            recSouth.add(deleteAllMeals);
             recordPanel.add(recSouth, BorderLayout.SOUTH);
 
             recordTable.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -238,6 +242,33 @@ package ca.yorku.eecs3311.nutrisci.view;
                 refreshMeals();
             } catch (Exception ex) {
                 ex.printStackTrace();
+            }
+        }
+        
+        private void deleteAllMeals() {
+            int result = JOptionPane.showConfirmDialog(this, 
+                "Are you sure you want to delete ALL meals and related data?\n" +
+                "This will also delete all daily summaries and recommendations.\n" +
+                "This action cannot be undone.",
+                "Confirm Delete All Meals", 
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+                
+            if (result == JOptionPane.YES_OPTION) {
+                try {
+                    mealCtl.deleteAllMealsForUser(uid);
+                    refreshMeals();
+                    JOptionPane.showMessageDialog(this, 
+                        "All meals and related data have been deleted successfully.",
+                        "Delete Complete", 
+                        JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, 
+                        "Failed to delete all meals: " + ex.getMessage(),
+                        "Error", 
+                        JOptionPane.ERROR_MESSAGE);
+                    ex.printStackTrace();
+                }
             }
         }
         

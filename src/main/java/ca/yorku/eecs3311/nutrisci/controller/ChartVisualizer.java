@@ -6,7 +6,11 @@ import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
+import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.renderer.category.BarRenderer;
+import org.jfree.chart.plot.PlotOrientation;
 
+import java.awt.Color;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -54,28 +58,35 @@ public class ChartVisualizer {
                     
                     System.out.println("DEBUG: PieChart results: carbs=" + carbs + ", proteins=" + proteins + ", fats=" + fats + ", others=" + others);
                     
-                    // Check if any of the values are not null and greater than 0
-                    if (!rs.wasNull() && (carbs > 0 || proteins > 0 || fats > 0 || others > 0)) {
+                    // Check if any of the values are meaningful (not null and greater than 0)
+                    boolean hasCarbs = !rs.wasNull() && carbs > 0;
+                    boolean hasProteins = !rs.wasNull() && proteins > 0;
+                    boolean hasFats = !rs.wasNull() && fats > 0;
+                    boolean hasOthers = !rs.wasNull() && others > 0;
+                    
+                    if (hasCarbs || hasProteins || hasFats || hasOthers) {
                         hasData = true;
                         
                         // Only add non-zero values to the chart
-                        if (carbs > 0) {
+                        if (hasCarbs) {
                             dataset.setValue("Carbs", carbs);
                         }
-                        if (proteins > 0) {
+                        if (hasProteins) {
                             dataset.setValue("Proteins", proteins);
                         }
-                        if (fats > 0) {
+                        if (hasFats) {
                             dataset.setValue("Fats", fats);
                         }
-                        if (others > 0) {
+                        if (hasOthers) {
                             dataset.setValue("Others", others);
                         }
                     } else {
-                        System.out.println("DEBUG: All values are null or zero");
+                        System.out.println("DEBUG: All values are null or zero - no meaningful data");
+                        hasData = false;
                     }
                 } else {
                     System.out.println("DEBUG: No results found for the date range");
+                    hasData = false;
                 }
             }
         } catch (SQLException e) {
@@ -99,34 +110,91 @@ public class ChartVisualizer {
     }
 
 
-    public ChartPanel createSwapComparisonChart(int userId, int recommendationId) {
-        System.out.println("DEBUG: createSwapComparisonChart userId=" + userId + ", recommendationId=" + recommendationId);
-        String sql = "SELECT original_value, suggested_value, nutrientname " +
-                     "FROM recommendations r " +
-                     "JOIN nutrient_name n ON r.nutrient_id = n.nutrientid " +
-                     "WHERE r.id = ?";
-        System.out.println("DEBUG: SQL=" + sql);
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, recommendationId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    System.out.println("DEBUG: BarChart row: nutrient=" + rs.getString("nutrientname") + ", original=" + rs.getDouble("original_value") + ", suggested=" + rs.getDouble("suggested_value"));
-                    String nutrient = rs.getString("nutrientname");
-                    dataset.addValue(rs.getDouble("original_value"), "Before", nutrient);
-                    dataset.addValue(rs.getDouble("suggested_value"), "After", nutrient);
+    public JFreeChart createSwapComparisonChart(int userId, int recommendationId) {
+        try (Connection conn = DBUtil.getConnection()) {
+            // Get recommendation details including original and suggested food IDs
+            String sql = "SELECT r.original_item_id, r.suggested_food_id, r.original_food_id, r.expected_change, " +
+                        "sg.nutrient_id, n.nutrientname " +
+                        "FROM recommendations r " +
+                        "JOIN swap_goals sg ON r.goal_id = sg.id " +
+                        "JOIN nutrient_name n ON sg.nutrient_id = n.nutrientid " +
+                        "WHERE r.id = ?";
+            
+            int originalFoodId = -1;
+            int suggestedFoodId = -1;
+            int nutrientId = -1;
+            String nutrientName = "";
+            double expectedChange = 0.0;
+            
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, recommendationId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        originalFoodId = rs.getInt("original_food_id"); // Use the stored original food ID
+                        suggestedFoodId = rs.getInt("suggested_food_id");
+                        nutrientId = rs.getInt("nutrient_id");
+                        nutrientName = rs.getString("nutrientname");
+                        expectedChange = rs.getDouble("expected_change");
+                        
+                        System.out.println("DEBUG: Found recommendation - original_food_id=" + originalFoodId + 
+                                         ", suggested_food_id=" + suggestedFoodId + 
+                                         ", nutrient=" + nutrientName);
+                    }
                 }
             }
+            
+            if (originalFoodId == -1 || suggestedFoodId == -1 || nutrientId == -1) {
+                System.err.println("DEBUG: Invalid recommendation data");
+                return null;
+            }
+            
+            // Get nutrient values for original and suggested foods
+            double originalValue = getNutrientValue(conn, originalFoodId, nutrientId);
+            double suggestedValue = getNutrientValue(conn, suggestedFoodId, nutrientId);
+            
+            System.out.println("DEBUG: Values - original=" + originalValue + ", suggested=" + suggestedValue);
+            
+            // Create the dataset
+            DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+            dataset.addValue(originalValue, "Before", nutrientName);
+            dataset.addValue(suggestedValue, "After", nutrientName);
+            
+            // Create the chart
+            JFreeChart chart = ChartFactory.createBarChart(
+                "Swap Nutrient Comparison",
+                nutrientName,
+                "Amount (g)",
+                dataset,
+                PlotOrientation.VERTICAL,
+                true, true, false
+            );
+            
+            // Customize the chart appearance
+            CategoryPlot plot = (CategoryPlot) chart.getPlot();
+            BarRenderer renderer = (BarRenderer) plot.getRenderer();
+            renderer.setSeriesPaint(0, Color.RED);  // Before
+            renderer.setSeriesPaint(1, Color.BLUE); // After
+            
+            return chart;
+            
         } catch (SQLException e) {
+            System.err.println("ERROR in createSwapComparisonChart: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
-        JFreeChart barChart = ChartFactory.createBarChart(
-            "Swap Nutrient Comparison", 
-            "Nutrient",              
-            "Amount",  
-            dataset
-        );
-        return new ChartPanel(barChart);
+    }
+    
+    private double getNutrientValue(Connection conn, int foodId, int nutrientId) throws SQLException {
+        String sql = "SELECT nutrientvalue FROM nutrient_amount WHERE foodid = ? AND nutrientid = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, foodId);
+            ps.setInt(2, nutrientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("nutrientvalue");
+                }
+            }
+        }
+        return 0.0;
     }
 }

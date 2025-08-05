@@ -46,12 +46,35 @@ public class MealItemDAO {
     }
 
     public List<MealItem> findByMealId(int mealId) throws SQLException {
-        String sql = "SELECT id, meal_id, food_id, measure_id, quantity FROM meal_items " +
-                     "WHERE meal_id = ? ORDER BY id";
+        String sql = "SELECT id, meal_id, food_id, measure_id, quantity FROM meal_items WHERE meal_id = ?";
         List<MealItem> list = new ArrayList<>();
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, mealId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    MealItem mi = new MealItem();
+                    mi.setId(rs.getInt("id"));
+                    mi.setMealId(rs.getInt("meal_id"));
+                    mi.setFoodId(rs.getInt("food_id"));
+                    mi.setMeasureId(rs.getInt("measure_id"));
+                    mi.setQuantity(rs.getDouble("quantity"));
+                    list.add(mi);
+                }
+            }
+        }
+        return list;
+    }
+    
+    public List<MealItem> findAllByUserId(int userId) throws SQLException {
+        String sql = "SELECT mi.id, mi.meal_id, mi.food_id, mi.measure_id, mi.quantity " +
+                    "FROM meal_items mi " +
+                    "JOIN meals m ON mi.meal_id = m.id " +
+                    "WHERE m.user_id = ?";
+        List<MealItem> list = new ArrayList<>();
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     MealItem mi = new MealItem();

@@ -76,23 +76,51 @@ public class SwapRecommender {
                     
                     // Find a better food for this nutrient
                     String betterSql;
+                    double targetImprovement = goal.getAmount(); // Use the goal amount as target improvement
+                    
                     if ("INCREASE".equals(goal.getDirection())) {
                         // For INCREASE, find foods with MORE of the nutrient
-                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? AND nutrientvalue > ? ORDER BY nutrientvalue DESC LIMIT 1";
+                        // Look for foods that provide at least some improvement
+                        // Filter out foods with obviously incorrect data (protein > 50g per 100g is suspicious)
+                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount " +
+                                   "WHERE nutrientid = ? AND nutrientvalue > ? " +
+                                   "ORDER BY nutrientvalue DESC LIMIT 10"; // Get foods with more of the nutrient
                     } else {
                         // For DECREASE, find foods with LESS of the nutrient
-                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount WHERE nutrientid = ? AND nutrientvalue < ? ORDER BY nutrientvalue ASC LIMIT 1";
+                        // Look for foods that reduce by at least some amount
+                        betterSql = "SELECT foodid, nutrientvalue FROM nutrient_amount " +
+                                   "WHERE nutrientid = ? AND nutrientvalue < ? " +
+                                   "ORDER BY nutrientvalue ASC LIMIT 10"; // Get foods with less of the nutrient
                     }
                     
                     int betterFoodId = item.getFoodId();
                     double betterVal = currentVal;
+                    double bestImprovement = 0;
+                    
                     try (PreparedStatement ps = conn.prepareStatement(betterSql)) {
                         ps.setInt(1, nutrNo);
                         ps.setDouble(2, currentVal);
                         try (ResultSet rs = ps.executeQuery()) {
-                            if (rs.next()) {
-                                betterFoodId = rs.getInt("foodid");
-                                betterVal = rs.getDouble("nutrientvalue");
+                            // Find the best food that provides reasonable improvement
+                            while (rs.next()) {
+                                int candidateFoodId = rs.getInt("foodid");
+                                double candidateVal = rs.getDouble("nutrientvalue");
+                                double improvement = Math.abs(candidateVal - currentVal);
+                                
+                                // For small current values, accept smaller improvements
+                                // For larger current values, require larger improvements
+                                double minImprovement = Math.max(0.1, currentVal * 0.05); // At least 5% improvement or 0.1g
+                                
+                                if (improvement >= minImprovement) {
+                                    // Prefer moderate improvements over extreme ones
+                                    // But accept any improvement that meets the minimum
+                                    if (betterFoodId == item.getFoodId() || 
+                                        (improvement <= targetImprovement * 3 && improvement > bestImprovement)) {
+                                        betterFoodId = candidateFoodId;
+                                        betterVal = candidateVal;
+                                        bestImprovement = improvement;
+                                    }
+                                }
                             }
                         }
                     }

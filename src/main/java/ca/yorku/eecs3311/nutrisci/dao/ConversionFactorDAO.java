@@ -42,18 +42,46 @@ public class ConversionFactorDAO {
                 }
             }
         }
-        // Fallback: use the first available conversion factor for this food
-        String fallbackSql = "SELECT conversionfactorvalue FROM conversion_factor WHERE foodid = ? LIMIT 1";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement ps = conn.prepareStatement(fallbackSql)) {
-            ps.setInt(1, foodId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    System.err.println("[WARN] Fallback: using first available conversion factor for foodId=" + foodId + ", measureId=" + measureId);
-                    return rs.getDouble("conversionfactorvalue");
+        
+        // If no conversion factor found, provide a more helpful error message
+        String foodName = getFoodName(foodId);
+        String measureName = getMeasureName(measureId);
+        throw new SQLException("Conversion factor not found for foodId = " + foodId + " (" + foodName + "), measureId = " + measureId + " (" + measureName + "). This food may not have conversion factors for this measure.");
+    }
+    
+    private String getFoodName(int foodId) {
+        try {
+            String sql = "SELECT fooddescription FROM food_name WHERE foodid = ?";
+            try (Connection conn = DBUtil.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, foodId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("fooddescription");
+                    }
                 }
             }
+        } catch (SQLException e) {
+            // Ignore errors in getting food name
         }
-        throw new SQLException("Conversion factor not found for foodId = " + foodId + ", measureId = " + measureId);
+        return "Unknown Food";
+    }
+    
+    private String getMeasureName(int measureId) {
+        try {
+            String sql = "SELECT measuredescription FROM measure_name WHERE measureid = ?";
+            try (Connection conn = DBUtil.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, measureId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("measuredescription");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            // Ignore errors in getting measure name
+        }
+        return "Unknown Measure";
     }
 }

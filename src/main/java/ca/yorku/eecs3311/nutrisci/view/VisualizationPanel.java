@@ -3,6 +3,7 @@ package ca.yorku.eecs3311.nutrisci.view;
 import ca.yorku.eecs3311.nutrisci.controller.ChartVisualizer;
 import ca.yorku.eecs3311.nutrisci.model.UserProfile;
 import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
 
 import javax.swing.*;
 import java.awt.*;
@@ -84,27 +85,20 @@ public class VisualizationPanel extends JPanel {
             return;
         }
         
-        ChartPanel chart = visualizer.createSwapComparisonChart(userId, recommendationId);
+        JFreeChart chart = visualizer.createSwapComparisonChart(userId, recommendationId);
         
-        // Check if chart has data by examining the dataset directly
-        boolean hasData = false;
-        try {
-            org.jfree.chart.plot.CategoryPlot plot = (org.jfree.chart.plot.CategoryPlot) chart.getChart().getPlot();
-            org.jfree.data.general.Dataset dataset = plot.getDataset();
-            if (dataset instanceof org.jfree.data.category.CategoryDataset) {
-                org.jfree.data.category.CategoryDataset categoryDataset = (org.jfree.data.category.CategoryDataset) dataset;
-                hasData = categoryDataset.getRowCount() > 0 && categoryDataset.getColumnCount() > 0;
-            }
-        } catch (Exception e) {
-            hasData = false;
-        }
-        
-        if (!hasData) {
-            JLabel noDataLabel = new JLabel("No comparison data available for the selected recommendation.", SwingConstants.CENTER);
-            noDataLabel.setFont(new Font("Arial", Font.BOLD, 16));
-            chartContainer.add(noDataLabel, BorderLayout.CENTER);
+        if (chart != null) {
+            ChartPanel chartPanel = new ChartPanel(chart);
+            chartPanel.setPreferredSize(new Dimension(600, 400));
+            
+            // Clear previous chart and add new one
+            chartContainer.removeAll();
+            chartContainer.add(chartPanel);
+            chartContainer.revalidate();
+            chartContainer.repaint();
         } else {
-            chartContainer.add(chart, BorderLayout.CENTER);
+            System.err.println("DEBUG: Failed to create comparison chart");
+            JOptionPane.showMessageDialog(this, "Failed to create comparison chart. No valid recommendation data found.");
         }
         
         revalidate();
@@ -120,7 +114,9 @@ public class VisualizationPanel extends JPanel {
             java.sql.ResultSet rs = stmt.executeQuery(
                 "SELECT r.id, n.nutrientname, r.expected_change " +
                 "FROM recommendations r " +
-                "JOIN nutrient_name n ON r.nutrient_id = n.nutrientid " +
+                "JOIN swap_goals sg ON r.goal_id = sg.id " +
+                "JOIN nutrient_name n ON sg.nutrient_id = n.nutrientid " +
+                "WHERE sg.user_id = " + userId + " " +
                 "ORDER BY r.id DESC LIMIT 10"
             );
             recList.append("Available Recommendation IDs:\n");
@@ -140,7 +136,8 @@ public class VisualizationPanel extends JPanel {
                 recList.append("Please generate swap suggestions first.\n");
             }
         } catch (Exception e) {
-            recList.append("(Could not fetch recommendations: ").append(e.getMessage()).append(")");
+            recList.append("Error fetching recommendations: ").append(e.getMessage()).append("\n");
+            recList.append("Please try generating swap suggestions first in the Swap tab.");
         }
         
         String input = JOptionPane.showInputDialog(this, 

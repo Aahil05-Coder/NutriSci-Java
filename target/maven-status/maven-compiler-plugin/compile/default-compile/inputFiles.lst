@@ -21,6 +21,7 @@
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/model/Nutrient.java
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/model/SwapGoal.java
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/model/UserProfile.java
+/Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/recommendation/AdvancedSwapRecommender.java
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/recommendation/SwapRecommender.java
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/util/DBUtil.java
 /Users/alimdhuka/Downloads/EECS3311deliverable1/src/main/java/ca/yorku/eecs3311/nutrisci/util/DatabaseInitializer.java

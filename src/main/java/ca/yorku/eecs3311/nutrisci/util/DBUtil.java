@@ -16,7 +16,7 @@ public class DBUtil {
       + "&allowLoadLocalInfile=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true";
 
     private static final String DB_NAME  = "nutrisci_db";
-    private static final String USER     = "root";
+    private static final String USER     = "nutrisci";
     private static final String PASSWORD = "";
 
     private static Connection conn = null;

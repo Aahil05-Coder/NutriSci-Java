@@ -12,7 +12,9 @@ ca/yorku/eecs3311/nutrisci/controller/SwapGoalController.class
 ca/yorku/eecs3311/nutrisci/view/editor/FoodComboBoxCellEditor$2.class
 ca/yorku/eecs3311/nutrisci/model/Nutrient.class
 ca/yorku/eecs3311/nutrisci/view/model/MealTableModel.class
+ca/yorku/eecs3311/nutrisci/recommendation/AdvancedSwapRecommender.class
 ca/yorku/eecs3311/nutrisci/dao/NutrientAmountDAO.class
+ca/yorku/eecs3311/nutrisci/recommendation/AdvancedSwapRecommender$SingleMealSwap.class
 ca/yorku/eecs3311/nutrisci/view/SwapPanel$ButtonEditor.class
 ca/yorku/eecs3311/nutrisci/recommendation/SwapRecommender.class
 ca/yorku/eecs3311/nutrisci/model/SwapGoal.class
@@ -20,13 +22,13 @@ ca/yorku/eecs3311/nutrisci/view/LogMealPanel.class
 ca/yorku/eecs3311/nutrisci/dao/UserProfileDAO.class
 ca/yorku/eecs3311/nutrisci/dao/MealDAO.class
 ca/yorku/eecs3311/nutrisci/view/MainFrame.class
-ca/yorku/eecs3311/nutrisci/view/SwapPanel$3.class
 ca/yorku/eecs3311/nutrisci/dao/MealNutritionDAO.class
 ca/yorku/eecs3311/nutrisci/util/Pair.class
 ca/yorku/eecs3311/nutrisci/model/MealItem.class
 ca/yorku/eecs3311/nutrisci/view/editor/FoodComboBoxCellEditor.class
 ca/yorku/eecs3311/nutrisci/view/SwapPanel$ButtonRenderer.class
 ca/yorku/eecs3311/nutrisci/recommendation/SwapRecommender$SwapSuggestion.class
+ca/yorku/eecs3311/nutrisci/recommendation/AdvancedSwapRecommender$MultiMealSwapSuggestion.class
 ca/yorku/eecs3311/nutrisci/dao/MealItemDAO.class
 ca/yorku/eecs3311/nutrisci/model/Food.class
 ca/yorku/eecs3311/nutrisci/dao/NutrientNameDAO.class

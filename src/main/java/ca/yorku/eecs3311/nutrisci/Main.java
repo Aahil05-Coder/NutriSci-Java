@@ -9,6 +9,8 @@ import java.util.Locale;
 import javax.swing.*;
 import java.awt.*;
 import java.util.Enumeration;
+import ca.yorku.eecs3311.nutrisci.controller.MealController;
+
 public class Main {
     public static void main(String[] args) {
     	 Locale.setDefault(Locale.ENGLISH);
@@ -24,12 +26,24 @@ public class Main {
         }
 
         SwingUtilities.invokeLater(() -> {
-            UserProfile profile = new ProfileDialog(null).showDialog();
-            if (profile == null) {
-                System.exit(0);
+            try {
+                // Fix any invalid meal items before starting the application
+                MealController mealController = new MealController();
+                mealController.fixInvalidMealItems();
+                
+                UserProfile profile = new ProfileDialog(null).showDialog();
+                if (profile == null) {
+                    System.exit(0);
+                }
+                MainFrame mainFrame = new MainFrame(profile);
+                mainFrame.setVisible(true);
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to start application: " + e.getMessage());
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, 
+                    "Failed to start application: " + e.getMessage(), 
+                    "Error", JOptionPane.ERROR_MESSAGE);
             }
-            MainFrame mainFrame = new MainFrame(profile);
-            mainFrame.setVisible(true);
         });
     }
     private static void setUIFont(Font font) {
